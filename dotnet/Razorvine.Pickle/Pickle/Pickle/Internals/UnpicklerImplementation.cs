@@ -12,7 +12,7 @@ using System.Reflection;
 
 namespace Razorvine.Pickle
 {
-    // the following type is generic in order to allow for 
+    // the following type is generic in order to allow for
     // IInputReader interface method devirtualizaiton and inlining
     // please see https://adamsitnik.com/Value-Types-vs-Reference-Types/#how-to-avoid-boxing-with-value-types-that-implement-interfaces for more
     internal class UnpicklerImplementation<T> where T : struct, IInputReader
@@ -49,7 +49,7 @@ namespace Razorvine.Pickle
             unpickler.memo.Clear();
             return value; // final result value
         }
-        
+
         private void Dispatch(byte key)
         {
             switch (key)
@@ -247,7 +247,7 @@ namespace Razorvine.Pickle
                 case Opcodes.STACK_GLOBAL:
                     load_stack_global();
                     return;
-                
+
                 // protocol 5 (Python 3.8+)
                 case Opcodes.BYTEARRAY8:
                     load_bytearray8();
@@ -257,7 +257,7 @@ namespace Razorvine.Pickle
                     break;
                 case Opcodes.NEXT_BUFFER:
                     load_next_buffer();
-                    break;                
+                    break;
 
                 default:
                     throw new InvalidOpcodeException("invalid pickle opcode: " + key);
@@ -282,8 +282,8 @@ namespace Razorvine.Pickle
         {
             stack.add(unpickler.nextBuffer());
         }
-        
-        
+
+
         private void load_build()
         {
             object args = stack.pop();
@@ -297,7 +297,15 @@ namespace Razorvine.Pickle
                 MethodInfo setStateMethod = target.GetType().GetMethod("__setstate__", argumentTypes);
                 if (setStateMethod == null)
                 {
-                    throw new PickleException($"no __setstate__() found in type {target.GetType()} with argument type {args.GetType()}");
+                    if (target is ClassDict cd)
+                    {
+                        // For robust loading just store the info
+                        cd.Add("__state__", args);
+                    }
+                    else
+                    {
+                        throw new PickleException($"no __setstate__() found in type {target.GetType()} with argument type {args.GetType()}");
+                    }
                 }
                 setStateMethod.Invoke(target, arguments);
             }

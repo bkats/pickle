@@ -15,16 +15,16 @@ namespace Razorvine.Pickle.Objects
 public class ClassDictConstructor : IObjectConstructor {
 	public readonly string module;
 	public readonly string name;
-	
+
 	public ClassDictConstructor(string module, string name) {
 		this.module=module;
 		this.name=name;
 	}
 
 	public object construct(object[] args) {
-		if(args.Length>0)
-			throw new PickleException("expected zero arguments for construction of ClassDict (for "+module+"."+name+"). This happens when an unsupported/unregistered class is being unpickled that requires construction arguments. Fix it by registering a custom IObjectConstructor for this class.");
-		return new ClassDict(module, name);
+		return new ClassDict(module, name) {
+			ConstructorArguments = args
+		};
 	}
 }
 
@@ -39,10 +39,10 @@ public class ClassDict : Dictionary<string, object>
 			ClassName = classname;
 		else
 			ClassName = modulename+"."+classname;
-		
+
 		Add("__class__", ClassName);
 	}
-	
+
 	/// <summary>
 	/// for the unpickler to restore state
 	/// </summary>
@@ -52,11 +52,56 @@ public class ClassDict : Dictionary<string, object>
 		foreach(string x in values.Keys)
 			Add(x, values[x]);
 	}
-	
+
+	/// <summary>
+	/// for the unpickler to restore state
+	/// </summary>
+	public void __setstate__(object[] state)
+	{
+		Clear();
+		Add("__class__", ClassName);
+		if (state.Length == 2 && state[1] is Hashtable slots)
+		{
+			var slotNames = new List<string>();
+			foreach (string x in slots.Keys)
+			{
+				slotNames.Add(x);
+				Add(x, slots[x]);
+			}
+			Slots = slotNames;
+
+			// Check for optional __dict__ values
+			if (state[0] is Hashtable values)
+			{
+				foreach (string x in values.Keys)
+				{
+					Add(x, values[x]);
+				}
+			}
+		}
+		else
+		{
+			// Probably some custom storage
+			Add("__state__", state);
+		}
+	}
+
 	/// <summary>
 	/// retrieve the (python) class name of the object that was pickled.
 	/// </summary>
 	public string ClassName { get; }
+
+	/// <summary>
+	/// retrieve the given arguments to the constructor
+	/// </summary>
+	public object[] ConstructorArguments { get; internal set; }
+
+	/// <summary>
+	/// retrieve the names of slots on this class
+	/// note: the values are in the dictionary
+	/// </summary>
+	public IReadOnlyList<string> Slots { get; protected set; }
+
 }
 
 }
